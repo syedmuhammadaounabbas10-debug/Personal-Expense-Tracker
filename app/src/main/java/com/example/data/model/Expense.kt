@@ -13,6 +13,7 @@ import com.example.util.PaisaHelper
 @Entity(
     tableName = "expenses",
     indices = [
+        Index(value = ["user_id"]),
         Index(value = ["date"]),
         Index(value = ["category"])
     ]
@@ -20,6 +21,7 @@ import com.example.util.PaisaHelper
 data class Expense(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val user_id: String = "",
     val amount: Long, // Amount in Paisa (1 PKR = 100 paisa)
     val category: String,
     val date: Long = System.currentTimeMillis(),

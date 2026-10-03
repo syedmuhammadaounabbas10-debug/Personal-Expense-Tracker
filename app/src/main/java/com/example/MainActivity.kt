@@ -14,6 +14,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -34,6 +35,11 @@ import com.example.ui.screens.NotificationsScreen
 import com.example.ui.screens.ReportsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TransactionsScreen
+import com.example.ui.screens.auth.ForgotPasswordScreen
+import com.example.ui.screens.auth.LoginScreen
+import com.example.ui.screens.auth.SignUpScreen
+import com.example.ui.screens.auth.SplashScreen
+import com.example.ui.screens.auth.WelcomeAuthScreen
 import com.example.ui.theme.Emerald700
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ExpenseViewModel
@@ -58,6 +64,8 @@ fun MainApp(viewModel: ExpenseViewModel) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val authUser by viewModel.authUser.collectAsState()
+    val isCheckingAuth by viewModel.isCheckingAuth.collectAsState()
 
     val showBottomBar = bottomNavScreens.any { it.route == currentRoute }
 
@@ -101,9 +109,132 @@ fun MainApp(viewModel: ExpenseViewModel) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Dashboard.route,
+            startDestination = Screen.Splash.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Authentication Startup & Auth Flow
+            composable(Screen.Splash.route) {
+                SplashScreen(
+                    isCheckingAuth = isCheckingAuth,
+                    isAuthenticated = authUser != null,
+                    onNavigateToApp = {
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateToAuth = {
+                        navController.navigate(Screen.Welcome.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(Screen.Welcome.route) {
+                WelcomeAuthScreen(
+                    onContinueWithGoogle = { onError ->
+                        viewModel.signInWithGoogle(
+                            onSuccess = {
+                                navController.navigate(Screen.Dashboard.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            },
+                            onError = onError
+                        )
+                    },
+                    onNavigateToSignUp = {
+                        navController.navigate(Screen.SignUp.route)
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route)
+                    },
+                    onContinueAsGuest = { onError ->
+                        viewModel.signInAsGuest(
+                            onSuccess = {
+                                navController.navigate(Screen.Dashboard.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            },
+                            onError = onError
+                        )
+                    }
+                )
+            }
+
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    onLogin = { email, pass, onError ->
+                        viewModel.signInWithEmail(
+                            email = email,
+                            pass = pass,
+                            onSuccess = {
+                                navController.navigate(Screen.Dashboard.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            },
+                            onError = onError
+                        )
+                    },
+                    onContinueWithGoogle = { onError ->
+                        viewModel.signInWithGoogle(
+                            onSuccess = {
+                                navController.navigate(Screen.Dashboard.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            },
+                            onError = onError
+                        )
+                    },
+                    onNavigateToSignUp = {
+                        navController.navigate(Screen.SignUp.route)
+                    },
+                    onNavigateToForgotPassword = {
+                        navController.navigate(Screen.ForgotPassword.route)
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.SignUp.route) {
+                SignUpScreen(
+                    onSignUp = { name, email, pass, onError ->
+                        viewModel.signUpWithEmail(
+                            name = name,
+                            email = email,
+                            pass = pass,
+                            onSuccess = {
+                                navController.navigate(Screen.Dashboard.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            },
+                            onError = onError
+                        )
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.SignUp.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.ForgotPassword.route) {
+                ForgotPasswordScreen(
+                    onSendResetEmail = { email, onSuccess, onError ->
+                        viewModel.sendPasswordReset(email, onSuccess, onError)
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            // Main App Destinations
             composable(Screen.Dashboard.route) {
                 DashboardScreen(
                     viewModel = viewModel,
@@ -197,6 +328,11 @@ fun MainApp(viewModel: ExpenseViewModel) {
                     viewModel = viewModel,
                     onNavigateToCategories = {
                         navController.navigate(Screen.Categories.route)
+                    },
+                    onLogout = {
+                        navController.navigate(Screen.Welcome.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     },
                     onNavigateBack = { navController.popBackStack() }
                 )

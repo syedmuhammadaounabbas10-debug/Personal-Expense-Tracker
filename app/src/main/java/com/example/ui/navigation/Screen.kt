@@ -11,6 +11,12 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector? = null) {
+    object Splash : Screen("splash", "Splash")
+    object Welcome : Screen("welcome", "Welcome")
+    object Login : Screen("login", "Login")
+    object SignUp : Screen("signup", "Sign Up")
+    object ForgotPassword : Screen("forgot_password", "Forgot Password")
+
     object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Dashboard)
     object Transactions : Screen("transactions", "Transactions", Icons.Default.ReceiptLong)
     object Budgets : Screen("budgets", "Budgets", Icons.Default.AccountBalanceWallet)

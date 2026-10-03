@@ -12,24 +12,24 @@ import kotlinx.coroutines.withContext
  */
 class ExpenseLocalRepository(private val expenseDao: ExpenseDao) {
 
-    val allExpenses: Flow<List<Expense>> = expenseDao.getAllExpenses()
+    fun getAllExpenses(userId: String): Flow<List<Expense>> = expenseDao.getAllExpenses(userId)
 
-    fun getExpenseById(id: Long): Flow<Expense?> = expenseDao.getExpenseById(id)
+    fun getExpenseById(userId: String, id: Long): Flow<Expense?> = expenseDao.getExpenseById(userId, id)
 
-    suspend fun getExpenseByIdSync(id: Long): Expense? = withContext(Dispatchers.IO) {
-        expenseDao.getExpenseByIdSync(id)
+    suspend fun getExpenseByIdSync(userId: String, id: Long): Expense? = withContext(Dispatchers.IO) {
+        expenseDao.getExpenseByIdSync(userId, id)
     }
 
-    fun getExpensesByDateRange(startDate: Long, endDate: Long): Flow<List<Expense>> =
-        expenseDao.getExpensesByDateRange(startDate, endDate)
+    fun getExpensesByDateRange(userId: String, startDate: Long, endDate: Long): Flow<List<Expense>> =
+        expenseDao.getExpensesByDateRange(userId, startDate, endDate)
 
-    fun getExpensesByCategory(category: String): Flow<List<Expense>> =
-        expenseDao.getExpensesByCategory(category)
+    fun getExpensesByCategory(userId: String, category: String): Flow<List<Expense>> =
+        expenseDao.getExpensesByCategory(userId, category)
 
-    fun getTotalExpensePaisa(): Flow<Long> = expenseDao.getTotalExpensePaisa()
+    fun getTotalExpensePaisa(userId: String): Flow<Long> = expenseDao.getTotalExpensePaisa(userId)
 
-    fun getTotalExpensePaisaInRange(startDate: Long, endDate: Long): Flow<Long> =
-        expenseDao.getTotalExpensePaisaInRange(startDate, endDate)
+    fun getTotalExpensePaisaInRange(userId: String, startDate: Long, endDate: Long): Flow<Long> =
+        expenseDao.getTotalExpensePaisaInRange(userId, startDate, endDate)
 
     suspend fun insertExpense(expense: Expense): Long = withContext(Dispatchers.IO) {
         expenseDao.insertExpense(expense)
@@ -47,8 +47,12 @@ class ExpenseLocalRepository(private val expenseDao: ExpenseDao) {
         expenseDao.deleteExpense(expense)
     }
 
-    suspend fun deleteExpenseById(id: Long) = withContext(Dispatchers.IO) {
-        expenseDao.deleteExpenseById(id)
+    suspend fun deleteExpenseById(userId: String, id: Long) = withContext(Dispatchers.IO) {
+        expenseDao.deleteExpenseById(userId, id)
+    }
+
+    suspend fun deleteAllForUser(userId: String) = withContext(Dispatchers.IO) {
+        expenseDao.deleteAllForUser(userId)
     }
 
     suspend fun deleteAllExpenses() = withContext(Dispatchers.IO) {

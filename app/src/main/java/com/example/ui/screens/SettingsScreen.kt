@@ -20,22 +20,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,12 +58,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.Emerald700
+import com.example.ui.theme.Emerald800
 import com.example.ui.theme.ExpenseRed
+import com.example.ui.theme.GoldAmber
 import com.example.ui.viewmodel.ExpenseViewModel
 import kotlinx.coroutines.launch
 
@@ -68,19 +76,29 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: ExpenseViewModel,
     onNavigateToCategories: () -> Unit,
+    onLogout: () -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val user by viewModel.user.collectAsState()
+    val authUser by viewModel.authUser.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
-    var nameInput by remember { mutableStateOf(user?.name ?: "Aun Abbas") }
-    var emailInput by remember { mutableStateOf(user?.email ?: "aun.abbas@example.com") }
+    var nameInput by remember { mutableStateOf(user?.name ?: "User") }
+    var emailInput by remember { mutableStateOf(user?.email ?: "") }
     var currencyInput by remember { mutableStateOf(user?.currency ?: "PKR") }
 
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showLinkEmailDialog by remember { mutableStateOf(false) }
+
+    var linkName by remember { mutableStateOf("") }
+    var linkEmail by remember { mutableStateOf("") }
+    var linkPass by remember { mutableStateOf("") }
+    var isLinking by remember { mutableStateOf(false) }
 
     // Edit Profile Dialog
     if (showEditProfileDialog) {
@@ -134,13 +152,90 @@ fun SettingsScreen(
         )
     }
 
+    // Link Email Dialog for Guest Users
+    if (showLinkEmailDialog) {
+        AlertDialog(
+            onDismissRequest = { showLinkEmailDialog = false },
+            title = { Text("Create Permanent Account", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Link your guest expenses, categories, and budgets to an email account so you never lose them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = linkName,
+                        onValueChange = { linkName = it },
+                        label = { Text("Your Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = linkEmail,
+                        onValueChange = { linkEmail = it },
+                        label = { Text("Email Address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = linkPass,
+                        onValueChange = { linkPass = it },
+                        label = { Text("Password (min 6 characters)") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (linkEmail.isNotBlank() && linkPass.length >= 6) {
+                            isLinking = true
+                            viewModel.linkGuestWithEmail(
+                                name = linkName,
+                                email = linkEmail.trim(),
+                                pass = linkPass,
+                                onSuccess = {
+                                    isLinking = false
+                                    showLinkEmailDialog = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Guest account successfully linked to permanent account!")
+                                    }
+                                },
+                                onError = { error ->
+                                    isLinking = false
+                                    scope.launch { snackbarHostState.showSnackbar(error) }
+                                }
+                            )
+                        }
+                    },
+                    enabled = !isLinking,
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                ) {
+                    if (isLinking) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
+                    } else {
+                        Text("Link Account")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLinkEmailDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // Reset Confirmation Dialog
     if (showResetConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showResetConfirmDialog = false },
             title = { Text("Reset All Data?", fontWeight = FontWeight.Bold, color = ExpenseRed) },
             text = {
-                Text("This will permanently delete all logged transactions, custom budgets, and notifications. This action cannot be undone.")
+                Text("This will permanently delete all your logged transactions, custom budgets, and notifications. This action cannot be undone.")
             },
             confirmButton = {
                 Button(
@@ -158,6 +253,69 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Logout Dialog
+    if (showLogoutConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirmDialog = false },
+            title = { Text("Log Out?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Are you sure you want to log out? Your local data will remain saved on this device.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutConfirmDialog = false
+                        viewModel.logout {
+                            onLogout()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                ) {
+                    Text("Log Out")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Account Dialog
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            title = { Text("Delete Account Permanently?", fontWeight = FontWeight.Bold, color = ExpenseRed) },
+            text = {
+                Text("This action is permanent and irreversible. All your transactions, budgets, categories, and account records will be permanently erased.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        viewModel.deleteAccount(
+                            onSuccess = {
+                                onLogout()
+                            },
+                            onError = { err ->
+                                scope.launch { snackbarHostState.showSnackbar(err) }
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) {
+                    Text("Delete Permanently")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -195,6 +353,13 @@ fun SettingsScreen(
         ) {
             // Profile Card
             item {
+                val isGuest = user?.is_guest == true || authUser?.isAnonymous == true
+                val providerLabel = when {
+                    isGuest -> "Guest Account"
+                    authUser?.providerId == "google.com" -> "Google Account"
+                    else -> "Email Account"
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -211,14 +376,14 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
-                                .background(Emerald700),
+                                .background(if (isGuest) Color.Gray else Emerald700),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = (user?.name?.take(2) ?: "AA").uppercase(),
+                                text = if (isGuest) "G" else (user?.name?.take(2) ?: "AA").uppercase(),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = Color.White
                                 )
                             )
                         }
@@ -227,29 +392,104 @@ fun SettingsScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = user?.name ?: "Aun Abbas",
+                                text = if (isGuest) "Guest Account" else (user?.name ?: "User"),
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = user?.email ?: "aun.abbas@example.com",
+                                text = if (isGuest) "Data stored locally" else (user?.email ?: authUser?.email ?: ""),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Currency: ${user?.currency ?: "PKR"} • Timezone: ${user?.timezone ?: "Asia/Karachi"}",
+                                text = "$providerLabel • ${user?.currency ?: "PKR"}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Emerald700
+                                color = Emerald700,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
 
-                        TextButton(onClick = {
-                            nameInput = user?.name ?: "Aun Abbas"
-                            emailInput = user?.email ?: "aun.abbas@example.com"
-                            currencyInput = user?.currency ?: "PKR"
-                            showEditProfileDialog = true
-                        }) {
-                            Text("Edit", color = Emerald700, fontWeight = FontWeight.Bold)
+                        if (!isGuest) {
+                            TextButton(onClick = {
+                                nameInput = user?.name ?: ""
+                                emailInput = user?.email ?: ""
+                                currencyInput = user?.currency ?: "PKR"
+                                showEditProfileDialog = true
+                            }) {
+                                Text("Edit", color = Emerald700, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Guest Linking Banner
+            if (user?.is_guest == true || authUser?.isAnonymous == true) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Emerald800.copy(alpha = 0.1f)),
+                        border = CardDefaults.outlinedCardBorder()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = null,
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Permanent Account",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+
+                            Text(
+                                text = "Create an account to keep your data across devices. Your existing expenses and budgets will be saved automatically.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.linkGuestWithGoogle(
+                                            onSuccess = {
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Linked successfully with Google!")
+                                                }
+                                            },
+                                            onError = { err ->
+                                                scope.launch { snackbarHostState.showSnackbar(err) }
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Link Google", fontSize = 13.sp)
+                                }
+
+                                Button(
+                                    onClick = { showLinkEmailDialog = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                                ) {
+                                    Text("Link Email", fontSize = 13.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -270,7 +510,6 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column {
-                        // Categories Row
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -318,7 +557,7 @@ fun SettingsScreen(
                             .clickable {
                                 viewModel.seedSampleData()
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Sample transactions, budgets, and alerts loaded!")
+                                    snackbarHostState.showSnackbar("Sample transactions, budgets, and alerts loaded for your account!")
                                 }
                             }
                             .padding(16.dp),
@@ -345,10 +584,64 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                             )
                             Text(
-                                text = "Populates realistic Pakistani salary, groceries, bills, and budget threshold alerts for testing",
+                                text = "Populates realistic Pakistani salary, groceries, bills, and budget threshold alerts",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                }
+            }
+
+            // Account & Session
+            item {
+                Text(
+                    text = "Account & Session",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column {
+                        // Log Out Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showLogoutConfirmDialog = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Emerald700.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                    contentDescription = null,
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Log Out",
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                                Text(
+                                    text = "Sign out from this device while preserving local data",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -368,41 +661,83 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showResetConfirmDialog = true }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
+                    Column {
+                        // Reset All Data
+                        Row(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(ExpenseRed.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .clickable { showResetConfirmDialog = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteForever,
-                                contentDescription = null,
-                                tint = ExpenseRed,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Reset All Data",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = ExpenseRed
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(ExpenseRed.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteForever,
+                                    contentDescription = null,
+                                    tint = ExpenseRed,
+                                    modifier = Modifier.size(22.dp)
                                 )
-                            )
-                            Text(
-                                text = "Clear all transactions, budgets, and notification records",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Reset All Data",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ExpenseRed
+                                    )
+                                )
+                                Text(
+                                    text = "Clear all logged transactions, budgets, and alerts for this user",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Delete Account
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showDeleteAccountDialog = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(ExpenseRed.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonRemove,
+                                    contentDescription = null,
+                                    tint = ExpenseRed,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Delete Account",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ExpenseRed
+                                    )
+                                )
+                                Text(
+                                    text = "Permanently delete account credentials and wipe all personal financial data",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -431,7 +766,7 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Developers: Aun Abbas & Abuzar Haroon\nCharter: Oct 2026 - Jan 2027\nCurrency: PKR (stored in integer paisa without float error)\nTimezone: Asia/Karachi (PKT)",
+                            text = "Developers: Syed M. Aun Abbas and Abuzar\nAuthenticated with Firebase Auth & Room Database\nCurrency: PKR (integer paisa precision)\nTimezone: Asia/Karachi (PKT)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

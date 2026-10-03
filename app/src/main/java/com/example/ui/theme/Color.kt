@@ -21,6 +21,7 @@ val Teal100 = Color(0xFFCCFBF1)
 // Accent / Gold / Amber Palette (Budget thresholds, savings)
 val Gold600 = Color(0xFFD97706)
 val Gold500 = Color(0xFFF59E0B)
+val GoldAmber = Gold500
 val Gold400 = Color(0xFFFBBF24)
 val Gold100 = Color(0xFFFEF3C7)
 

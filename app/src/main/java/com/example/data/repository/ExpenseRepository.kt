@@ -32,12 +32,60 @@ class ExpenseRepository(
     // User Operations
     fun getUser(userId: String = DEFAULT_USER_ID): Flow<UserEntity?> = userDao.getUser(userId)
 
+    suspend fun syncUserWithLocalDb(
+        uid: String,
+        email: String,
+        displayName: String,
+        photoUrl: String?,
+        isGuest: Boolean,
+        providerId: String
+    ): UserEntity = withContext(Dispatchers.IO) {
+        var user = userDao.getUserSync(uid)
+        if (user == null) {
+            user = UserEntity(
+                id = uid,
+                name = displayName.ifBlank { if (isGuest) "Guest User" else "User" },
+                email = email,
+                currency = "PKR",
+                timezone = "Asia/Karachi",
+                is_guest = isGuest,
+                photo_url = photoUrl,
+                provider_id = providerId
+            )
+            userDao.insertUser(user)
+        } else {
+            val updated = user.copy(
+                name = if (displayName.isNotBlank()) displayName else user.name,
+                email = if (email.isNotBlank()) email else user.email,
+                photo_url = photoUrl ?: user.photo_url,
+                is_guest = isGuest,
+                provider_id = providerId
+            )
+            userDao.updateUser(updated)
+            user = updated
+        }
+
+        val count = categoryDao.getCategoryCount(uid)
+        if (count == 0) {
+            seedDefaultCategories(uid)
+        }
+        user
+    }
+
+    suspend fun deleteUserData(userId: String) = withContext(Dispatchers.IO) {
+        transactionDao.deleteAllForUser(userId)
+        budgetDao.deleteAllForUser(userId)
+        notificationDao.clearAll(userId)
+        categoryDao.deleteAllForUser(userId)
+        userDao.deleteUser(userId)
+    }
+
     suspend fun ensureDefaultUserAndCategories(): UserEntity = withContext(Dispatchers.IO) {
         var user = userDao.getFirstUser()
         if (user == null) {
             user = UserEntity(
                 id = DEFAULT_USER_ID,
-                name = "Aun Abbas",
+                name = "Syed M. Aun Abbas",
                 email = "aun.abbas@example.com",
                 currency = "PKR",
                 timezone = "Asia/Karachi"
