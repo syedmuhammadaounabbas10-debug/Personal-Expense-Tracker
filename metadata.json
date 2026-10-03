@@ -1,0 +1,6 @@
+{
+  "name": "Expense Tracker",
+  "description": "Personal Expense Tracker for Pakistan with smart budget alerts, paisa-precision calculations, offline support, and visual reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
