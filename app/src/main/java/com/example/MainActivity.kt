@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -131,9 +132,11 @@ fun MainApp(viewModel: ExpenseViewModel) {
             }
 
             composable(Screen.Welcome.route) {
+                val context = LocalContext.current
                 WelcomeAuthScreen(
                     onContinueWithGoogle = { onError ->
                         viewModel.signInWithGoogle(
+                            activityContext = context,
                             onSuccess = {
                                 navController.navigate(Screen.Dashboard.route) {
                                     popUpTo(Screen.Welcome.route) { inclusive = true }
@@ -162,6 +165,7 @@ fun MainApp(viewModel: ExpenseViewModel) {
             }
 
             composable(Screen.Login.route) {
+                val context = LocalContext.current
                 LoginScreen(
                     onLogin = { email, pass, onError ->
                         viewModel.signInWithEmail(
@@ -177,6 +181,7 @@ fun MainApp(viewModel: ExpenseViewModel) {
                     },
                     onContinueWithGoogle = { onError ->
                         viewModel.signInWithGoogle(
+                            activityContext = context,
                             onSuccess = {
                                 navController.navigate(Screen.Dashboard.route) {
                                     popUpTo(Screen.Welcome.route) { inclusive = true }

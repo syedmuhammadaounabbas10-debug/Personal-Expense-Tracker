@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -82,6 +83,7 @@ fun SettingsScreen(
 ) {
     val user by viewModel.user.collectAsState()
     val authUser by viewModel.authUser.collectAsState()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -465,6 +467,7 @@ fun SettingsScreen(
                                 OutlinedButton(
                                     onClick = {
                                         viewModel.linkGuestWithGoogle(
+                                            activityContext = context,
                                             onSuccess = {
                                                 scope.launch {
                                                     snackbarHostState.showSnackbar("Linked successfully with Google!")

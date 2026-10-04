@@ -1,6 +1,8 @@
 package com.example.data.auth
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -8,6 +10,7 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
@@ -28,6 +31,12 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 import java.util.UUID
+
+tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 sealed class AuthResult<out T> {
     data class Success<out T>(val data: T) : AuthResult<T>()
@@ -180,8 +189,9 @@ class AuthManager(private val context: Context) {
     /**
      * Continue with Google using Credential Manager (Two-Stage Authorized -> Unfiltered Fallback)
      */
-    suspend fun signInWithGoogle(webClientId: String? = null): AuthResult<AuthUser> {
+    suspend fun signInWithGoogle(activityContext: Context, webClientId: String? = null): AuthResult<AuthUser> {
         val fa = auth ?: return AuthResult.Error(FIREBASE_NOT_CONFIGURED_MSG)
+        val targetContext = activityContext.findActivity() ?: activityContext
         return try {
             // Generate a random nonce for security
             val rawNonce = UUID.randomUUID().toString()
@@ -214,9 +224,11 @@ class AuthManager(private val context: Context) {
                     .addCredentialOption(googleIdOptionAuthorized)
                     .build()
 
-                credentialResponse = credentialManager.getCredential(context, requestAuthorized)
+                credentialResponse = credentialManager.getCredential(targetContext, requestAuthorized)
             } catch (e: GetCredentialCancellationException) {
                 return AuthResult.Error("Google sign-in was cancelled.")
+            } catch (e: NoCredentialException) {
+                Log.d("AuthManager", "No authorized credentials found, falling back to all Google accounts...")
             } catch (e: Exception) {
                 Log.d("AuthManager", "Authorized accounts sign-in failed (${e.message}), retrying with all Google accounts...")
             }
@@ -234,7 +246,7 @@ class AuthManager(private val context: Context) {
                     .addCredentialOption(googleIdOptionAll)
                     .build()
 
-                credentialResponse = credentialManager.getCredential(context, requestAll)
+                credentialResponse = credentialManager.getCredential(targetContext, requestAll)
             }
 
             val credential = credentialResponse?.credential ?: return AuthResult.Error("No credential returned from Google.")
@@ -251,6 +263,8 @@ class AuthManager(private val context: Context) {
             }
         } catch (e: GetCredentialCancellationException) {
             AuthResult.Error("Google sign-in was cancelled.")
+        } catch (e: NoCredentialException) {
+            AuthResult.Error("No Google account found on this device. Please add a Google account in your phone Settings and try again.")
         } catch (e: GetCredentialException) {
             AuthResult.Error("Google sign-in failed: ${e.message ?: "No account selected"}")
         } catch (e: Exception) {
@@ -290,11 +304,18 @@ class AuthManager(private val context: Context) {
     /**
      * Link Guest Account with Google Credential
      */
-    suspend fun linkGuestWithGoogle(webClientId: String? = null): AuthResult<AuthUser> {
+    suspend fun linkGuestWithGoogle(activityContext: Context, webClientId: String? = null): AuthResult<AuthUser> {
         val fa = auth ?: return AuthResult.Error(FIREBASE_NOT_CONFIGURED_MSG)
         val currentUser = fa.currentUser ?: return AuthResult.Error("No active guest account found to link.")
+        val targetContext = activityContext.findActivity() ?: activityContext
 
         return try {
+            val rawNonce = UUID.randomUUID().toString()
+            val bytes = rawNonce.toByteArray()
+            val md = MessageDigest.getInstance("SHA-256")
+            val digest = md.digest(bytes)
+            val hashedNonce = digest.fold("") { str, it -> str + "%02x".format(it) }
+
             val clientId = webClientId ?: getWebClientIdFromResources()
             if (clientId.isNullOrBlank()) {
                 return AuthResult.Error("Google Web Client ID is missing.")
@@ -308,15 +329,18 @@ class AuthManager(private val context: Context) {
                     .setFilterByAuthorizedAccounts(true)
                     .setServerClientId(clientId)
                     .setAutoSelectEnabled(false)
+                    .setNonce(hashedNonce)
                     .build()
 
                 val requestAuth = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOptionAuth)
                     .build()
 
-                credentialResponse = credentialManager.getCredential(context, requestAuth)
+                credentialResponse = credentialManager.getCredential(targetContext, requestAuth)
             } catch (e: GetCredentialCancellationException) {
                 return AuthResult.Error("Google linking cancelled.")
+            } catch (e: NoCredentialException) {
+                Log.d("AuthManager", "No authorized credentials found for linking, retrying with all Google accounts...")
             } catch (e: Exception) {
                 Log.d("AuthManager", "Authorized account linking lookup failed (${e.message}), retrying with all accounts...")
             }
@@ -327,13 +351,14 @@ class AuthManager(private val context: Context) {
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(clientId)
                     .setAutoSelectEnabled(false)
+                    .setNonce(hashedNonce)
                     .build()
 
                 val requestAll = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOptionAll)
                     .build()
 
-                credentialResponse = credentialManager.getCredential(context, requestAll)
+                credentialResponse = credentialManager.getCredential(targetContext, requestAll)
             }
 
             val credential = credentialResponse?.credential ?: return AuthResult.Error("No credential returned from Google.")
@@ -351,6 +376,10 @@ class AuthManager(private val context: Context) {
             AuthResult.Error("This Google account is already linked to another user. Please log in with that account.")
         } catch (e: GetCredentialCancellationException) {
             AuthResult.Error("Google linking cancelled.")
+        } catch (e: NoCredentialException) {
+            AuthResult.Error("No Google account found on this device. Please add a Google account in your phone Settings and try again.")
+        } catch (e: GetCredentialException) {
+            AuthResult.Error("Google linking failed: ${e.message ?: "No account selected"}")
         } catch (e: Exception) {
             AuthResult.Error(friendlyErrorMessage(e))
         }

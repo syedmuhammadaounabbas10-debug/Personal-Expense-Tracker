@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.auth.AuthManager
@@ -254,9 +255,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Authentication Actions
-    fun signInWithGoogle(onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun signInWithGoogle(activityContext: Context, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
-            when (val result = authManager.signInWithGoogle()) {
+            when (val result = authManager.signInWithGoogle(activityContext)) {
                 is AuthResult.Success -> {
                     _authUser.value = result.data
                     _currentUserId.value = result.data.uid
@@ -367,9 +368,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun linkGuestWithGoogle(onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun linkGuestWithGoogle(activityContext: Context, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
-            when (val result = authManager.linkGuestWithGoogle()) {
+            when (val result = authManager.linkGuestWithGoogle(activityContext)) {
                 is AuthResult.Success -> {
                     _authUser.value = result.data
                     repository.syncUserWithLocalDb(
