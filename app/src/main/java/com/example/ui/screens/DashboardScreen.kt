@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.TransactionWithCategory
 import com.example.ui.components.CategoryIcon
+import com.example.ui.components.MonthlyExpensesVsBudgetChartCard
 import com.example.ui.components.TransactionItemCard
 import com.example.ui.theme.Emerald500
 import com.example.ui.theme.Emerald700
@@ -288,6 +289,15 @@ fun DashboardScreen(
                         }
                     }
                 }
+            }
+
+            // Monthly Expenses vs Budget Chart Summary
+            item {
+                MonthlyExpensesVsBudgetChartCard(
+                    currentExpenseMinor = expenseMinor,
+                    budgetLimitMinor = overallBudget?.limit_minor ?: 0L,
+                    currencyCode = currency
+                )
             }
 
             // Quick Actions Row

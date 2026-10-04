@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -152,7 +153,14 @@ class AuthManager(private val context: Context) {
             val user = result.user ?: return AuthResult.Error("Failed to create guest session.")
             AuthResult.Success(mapFirebaseUser(user))
         } catch (e: Exception) {
-            AuthResult.Error(friendlyErrorMessage(e))
+            val msg = e.localizedMessage ?: ""
+            if ((e is FirebaseAuthException && (e.errorCode == "ERROR_ADMIN_RESTRICTED_OPERATION" || e.errorCode == "ERROR_OPERATION_NOT_ALLOWED")) ||
+                msg.contains("restricted", ignoreCase = true) || msg.contains("administrator", ignoreCase = true) || msg.contains("admin", ignoreCase = true)
+            ) {
+                AuthResult.Error("Guest mode is currently unavailable. Please enable Anonymous Authentication in Firebase Console.")
+            } else {
+                AuthResult.Error(friendlyErrorMessage(e))
+            }
         }
     }
 
@@ -170,7 +178,7 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Continue with Google using Credential Manager
+     * Continue with Google using Credential Manager (Two-Stage Authorized -> Unfiltered Fallback)
      */
     suspend fun signInWithGoogle(webClientId: String? = null): AuthResult<AuthUser> {
         val fa = auth ?: return AuthResult.Error(FIREBASE_NOT_CONFIGURED_MSG)
@@ -191,19 +199,45 @@ class AuthManager(private val context: Context) {
                 )
             }
 
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(clientId)
-                .setAutoSelectEnabled(false)
-                .setNonce(hashedNonce)
-                .build()
+            var credentialResponse: GetCredentialResponse? = null
 
-            val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
-                .build()
+            // Stage 1: Attempt filterByAuthorizedAccounts = true
+            try {
+                val googleIdOptionAuthorized = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(true)
+                    .setServerClientId(clientId)
+                    .setAutoSelectEnabled(false)
+                    .setNonce(hashedNonce)
+                    .build()
 
-            val credentialResponse = credentialManager.getCredential(context, request)
-            val credential = credentialResponse.credential
+                val requestAuthorized = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOptionAuthorized)
+                    .build()
+
+                credentialResponse = credentialManager.getCredential(context, requestAuthorized)
+            } catch (e: GetCredentialCancellationException) {
+                return AuthResult.Error("Google sign-in was cancelled.")
+            } catch (e: Exception) {
+                Log.d("AuthManager", "Authorized accounts sign-in failed (${e.message}), retrying with all Google accounts...")
+            }
+
+            // Stage 2: Fallback to filterByAuthorizedAccounts = false
+            if (credentialResponse == null) {
+                val googleIdOptionAll = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(clientId)
+                    .setAutoSelectEnabled(false)
+                    .setNonce(hashedNonce)
+                    .build()
+
+                val requestAll = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOptionAll)
+                    .build()
+
+                credentialResponse = credentialManager.getCredential(context, requestAll)
+            }
+
+            val credential = credentialResponse?.credential ?: return AuthResult.Error("No credential returned from Google.")
 
             if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
@@ -266,18 +300,43 @@ class AuthManager(private val context: Context) {
                 return AuthResult.Error("Google Web Client ID is missing.")
             }
 
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(clientId)
-                .setAutoSelectEnabled(false)
-                .build()
+            var credentialResponse: GetCredentialResponse? = null
 
-            val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
-                .build()
+            // Stage 1: Attempt authorized accounts
+            try {
+                val googleIdOptionAuth = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(true)
+                    .setServerClientId(clientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
 
-            val credentialResponse = credentialManager.getCredential(context, request)
-            val credential = credentialResponse.credential
+                val requestAuth = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOptionAuth)
+                    .build()
+
+                credentialResponse = credentialManager.getCredential(context, requestAuth)
+            } catch (e: GetCredentialCancellationException) {
+                return AuthResult.Error("Google linking cancelled.")
+            } catch (e: Exception) {
+                Log.d("AuthManager", "Authorized account linking lookup failed (${e.message}), retrying with all accounts...")
+            }
+
+            // Stage 2: Fallback to all Google accounts
+            if (credentialResponse == null) {
+                val googleIdOptionAll = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(clientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+
+                val requestAll = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOptionAll)
+                    .build()
+
+                credentialResponse = credentialManager.getCredential(context, requestAll)
+            }
+
+            val credential = credentialResponse?.credential ?: return AuthResult.Error("No credential returned from Google.")
 
             if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
