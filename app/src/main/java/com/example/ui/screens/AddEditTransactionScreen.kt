@@ -29,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Mic
+import com.example.ui.components.VoiceEntryBottomSheet
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -94,6 +96,7 @@ fun AddEditTransactionScreen(
     var noteInput by remember { mutableStateOf("") }
     var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showVoiceSheet by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // If editing existing transaction, prefill values
@@ -288,6 +291,26 @@ fun AddEditTransactionScreen(
                                 unfocusedContainerColor = Color.Transparent
                             )
                         )
+
+                        IconButton(
+                            onClick = { showVoiceSheet = true },
+                            modifier = Modifier.testTag("btn_voice_input_amount")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Emerald700.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = "Voice Input",
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -503,6 +526,33 @@ fun AddEditTransactionScreen(
                 Text(
                     text = if (txId == null) "Save Transaction" else "Update Transaction",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+
+            if (showVoiceSheet) {
+                VoiceEntryBottomSheet(
+                    categories = categories,
+                    onDismiss = { showVoiceSheet = false },
+                    onSaveTransaction = { type, amountPkr, categoryId, note, dateMillis ->
+                        viewModel.saveTransaction(
+                            id = null,
+                            type = type,
+                            amountPkr = amountPkr,
+                            categoryId = categoryId,
+                            note = note,
+                            dateMillis = dateMillis
+                        )
+                        showVoiceSheet = false
+                        onNavigateBack()
+                    },
+                    onEditInFullForm = { type, amountPkrStr, categoryId, note, dateMillis ->
+                        selectedType = type
+                        amountInput = amountPkrStr
+                        selectedCategoryId = categoryId
+                        noteInput = note
+                        selectedDateMillis = dateMillis
+                        showVoiceSheet = false
+                    }
                 )
             }
         }

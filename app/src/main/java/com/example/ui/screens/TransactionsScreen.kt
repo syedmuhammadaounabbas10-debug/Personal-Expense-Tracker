@@ -23,7 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
+import com.example.ui.components.VoiceEntryBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -77,6 +79,7 @@ fun TransactionsScreen(
     val currency = user?.currency ?: "PKR"
 
     var showFilterSheet by remember { mutableStateOf(false) }
+    var showVoiceSheet by remember { mutableStateOf(false) }
 
     // Group transactions by date string
     val groupedTransactions = remember(filteredTransactions) {
@@ -101,13 +104,25 @@ fun TransactionsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToAddTransaction,
-                containerColor = Emerald700,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_transaction_fab")
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FloatingActionButton(
+                    onClick = { showVoiceSheet = true },
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = Emerald700,
+                    shape = CircleShape,
+                    modifier = Modifier.testTag("voice_entry_fab_transactions")
+                ) {
+                    Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice Entry")
+                }
+
+                FloatingActionButton(
+                    onClick = onNavigateToAddTransaction,
+                    containerColor = Emerald700,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_transaction_fab")
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
+                }
             }
         }
     ) { innerPadding ->
@@ -299,6 +314,28 @@ fun TransactionsScreen(
                     }
                 }
             }
+        }
+
+        if (showVoiceSheet) {
+            VoiceEntryBottomSheet(
+                categories = categories,
+                onDismiss = { showVoiceSheet = false },
+                onSaveTransaction = { type, amountPkr, categoryId, note, dateMillis ->
+                    viewModel.saveTransaction(
+                        id = null,
+                        type = type,
+                        amountPkr = amountPkr,
+                        categoryId = categoryId,
+                        note = note,
+                        dateMillis = dateMillis
+                    )
+                    showVoiceSheet = false
+                },
+                onEditInFullForm = { type, amountPkrStr, categoryId, note, dateMillis ->
+                    showVoiceSheet = false
+                    onNavigateToAddTransaction()
+                }
+            )
         }
     }
 }

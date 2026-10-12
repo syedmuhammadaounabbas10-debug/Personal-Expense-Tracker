@@ -24,7 +24,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
@@ -46,6 +48,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +64,7 @@ import com.example.data.model.TransactionWithCategory
 import com.example.ui.components.CategoryIcon
 import com.example.ui.components.MonthlyExpensesVsBudgetChartCard
 import com.example.ui.components.TransactionItemCard
+import com.example.ui.components.VoiceEntryBottomSheet
 import com.example.ui.theme.Emerald500
 import com.example.ui.theme.Emerald700
 import com.example.ui.theme.Emerald800
@@ -95,8 +101,21 @@ fun DashboardScreen(
     val balanceMinor = incomeMinor - expenseMinor
     val recentTxs = transactions.take(5)
 
+    var showVoiceSheet by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showVoiceSheet = true },
+                containerColor = Emerald700,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.testTag("fab_voice_entry_dashboard")
+            ) {
+                Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice Expense Entry")
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -639,6 +658,28 @@ fun DashboardScreen(
                     )
                 }
             }
+        }
+
+        if (showVoiceSheet) {
+            VoiceEntryBottomSheet(
+                categories = categories,
+                onDismiss = { showVoiceSheet = false },
+                onSaveTransaction = { type, amountPkr, categoryId, note, dateMillis ->
+                    viewModel.saveTransaction(
+                        id = null,
+                        type = type,
+                        amountPkr = amountPkr,
+                        categoryId = categoryId,
+                        note = note,
+                        dateMillis = dateMillis
+                    )
+                    showVoiceSheet = false
+                },
+                onEditInFullForm = { type, amountPkrStr, categoryId, note, dateMillis ->
+                    showVoiceSheet = false
+                    onNavigateToAddTransaction(type)
+                }
+            )
         }
     }
 }
